@@ -2,141 +2,81 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام المراقبة السحابي - 8 كاميرات</title>
+    <title>نظام 8 كاميرات - XAMPP Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f0f0f; color: #fff; margin: 0; padding: 15px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { color: #00d1b2; font-size: 1.5rem; margin: 0; }
-        
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
-            gap: 15px; 
-            max-width: 1400px; 
-            margin: 0 auto;
-        }
-
+        body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; height: 95vh; }
         .box { 
-            background: #1a1a1a; 
-            border: 2px solid #333; 
-            border-radius: 15px; 
-            aspect-ratio: 4/3;
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
-            position: relative;
-            overflow: hidden;
-            transition: transform 0.2s, border-color 0.2s;
-            cursor: pointer;
+            background: #111; border: 1px solid #333; border-radius: 8px; 
+            display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; overflow: hidden; position: relative;
+            cursor: pointer; transition: 0.3s;
         }
-
-        .box:hover { border-color: #00d1b2; transform: scale(1.02); }
-
+        /* ميزة التكبير */
         .box.fullscreen {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; border: none; border-radius: 0;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999;
         }
-
-        video { width: 100%; height: 100%; object-fit: cover; display: none; background: #000; }
-
-        .qr-container { background: white; padding: 10px; border-radius: 10px; }
+        video { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .qr-div { background: white; padding: 5px; border-radius: 4px; }
+        .info { position: absolute; top: 5px; right: 10px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
         
-        .label { 
-            position: absolute; top: 10px; right: 10px; 
-            background: rgba(0,209,178,0.8); color: #000; 
-            padding: 3px 12px; border-radius: 20px; 
-            font-size: 0.8rem; font-weight: bold; z-index: 10;
-        }
-
-        /* واجهة الهاتف */
-        #mobile-ui { display:none; text-align: center; padding: 60px 20px; }
-        .btn-stream { 
-            background: #00d1b2; color: #000; border: none; 
-            padding: 20px 40px; font-size: 1.2rem; border-radius: 50px; 
-            font-weight: bold; cursor: pointer; width: 100%; max-width: 300px;
-        }
+        /* واجهة الجوال */
+        #mobile-ui { display:none; text-align: center; padding-top: 50px; }
+        .btn { background: #28a745; color: white; padding: 20px; border: none; border-radius: 10px; font-size: 1.5rem; }
     </style>
 </head>
 <body>
 
-<div id="pc-ui">
-    <div class="header">
-        <h1>لوحة تحكم الكاميرات (P2P)</h1>
-        <p style="color: #888; font-size: 0.9rem;">اضغط على أي نافذة لتكبيرها</p>
-    </div>
-    <div class="grid" id="gridContainer">
-        </div>
-</div>
+<div id="pc-ui" class="grid" id="gridContainer"></div>
 
 <div id="mobile-ui">
-    <div style="background: #1a1a1a; padding: 30px; border-radius: 20px;">
-        <h2 id="cam-info" style="color: #00d1b2;">جاهز للاتصال</h2>
-        <p>سيتم بث الكاميرا الخلفية مباشرة إلى الحاسوب</p>
-        <button class="btn-stream" id="startBtn">إرسال البث الآن 🎥</button>
-        <p id="status-msg" style="margin-top:20px; color: #888;"></p>
-    </div>
+    <h2 id="cam-name"></h2>
+    <button class="btn" id="startBtn">تشغيل الكاميرا الآن 🎥</button>
 </div>
 
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     const joinId = urlParams.get('join');
     const camNo = urlParams.get('cam');
-    const gridContainer = document.getElementById('gridContainer');
 
     if (joinId) {
         // --- وضع الهاتف ---
         document.getElementById('pc-ui').style.display = 'none';
         document.getElementById('mobile-ui').style.display = 'block';
-        document.getElementById('cam-info').innerText = "متصل بالنافذة رقم " + camNo;
+        document.getElementById('cam-name').innerText = "بث إلى نافذة رقم " + camNo;
 
         const peer = new Peer();
         document.getElementById('startBtn').onclick = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" }, 
-                    audio: false 
-                });
-                const call = peer.call(joinId, stream);
-                document.getElementById('status-msg').innerText = "جاري البث... لا تغلق الصفحة";
-                document.getElementById('startBtn').style.opacity = "0.5";
-                document.getElementById('startBtn').disabled = true;
-            } catch (e) {
-                alert("يرجى السماح بصلاحية الكاميرا");
-            }
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            peer.call(joinId, stream);
+            document.getElementById('mobile-ui').innerHTML = "<h3>يتم البث حالياً... ✅</h3>";
         };
     } else {
-        // --- وضع الحاسوب ---
+        // --- وضع الحاسوب (توليد 8 مربعات) ---
+        const grid = document.getElementById('pc-ui');
         for (let i = 1; i <= 8; i++) {
             const box = document.createElement('div');
             box.className = 'box';
-            box.innerHTML = `
-                <div class="label">CAM 0${i}</div>
-                <div id="qr-${i}" class="qr-container"></div>
-                <video id="v-${i}" autoplay playsinline></video>
-            `;
+            box.innerHTML = `<div class="info">نافذة ${i}</div><div id="qr${i}" class="qr-div"></div><video id="v${i}" autoplay playsinline></video>`;
             box.onclick = () => box.classList.toggle('fullscreen');
-            gridContainer.appendChild(box);
+            grid.appendChild(box);
 
             const peer = new Peer();
             peer.on('open', (id) => {
-                // توليد الرابط بناءً على رابط GitHub الحالي
-                const link = `${window.location.href.split('?')[0]}?join=${id}&cam=${i}`;
-                new QRCode(document.getElementById(`qr-${i}`), { 
-                    text: link, width: 140, height: 140, colorDark: "#000000"
-                });
+                const myIP = window.location.hostname; // يجلب الـ IP تلقائياً
+                const link = `http://${myIP}/camera/index.html?join=${id}&cam=${i}`;
+                new QRCode(document.getElementById(`qr${i}`), { text: link, width: 100, height: 100 });
             });
 
             peer.on('call', (call) => {
                 call.answer();
                 call.on('stream', (s) => {
-                    const video = document.getElementById(`v-${i}`);
+                    const video = document.getElementById(`v${i}`);
                     video.srcObject = s;
                     video.style.display = 'block';
-                    document.getElementById(`qr-${i}`).parentElement.style.background = "#000";
-                    document.getElementById(`qr-${i}`).style.display = 'none';
+                    document.getElementById(`qr${i}`).style.display = 'none';
                 });
             });
         }
