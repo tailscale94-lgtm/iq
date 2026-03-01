@@ -2,39 +2,42 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>نظام التقاط الصور - 8 نوافذ</title>
+    <title>التقاط صور فوري - 8 نوافذ</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0a0a0a; color: #fff; margin: 0; padding: 10px; text-align: center; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; height: 85vh; margin-top: 10px; }
+        body { font-family: sans-serif; background: #050505; color: #fff; margin: 0; padding: 10px; text-align: center; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; height: 85vh; margin-top: 10px; }
         @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
         .box { 
-            background: #1a1a1a; border: 2px solid #333; border-radius: 12px; 
+            background: #111; border: 2px solid #333; border-radius: 12px; 
             display: flex; flex-direction: column; align-items: center; 
             justify-content: center; position: relative; aspect-ratio: 4/3; overflow: hidden;
         }
-        img { width: 100%; height: 100%; object-fit: cover; display: none; transform: scaleX(-1); }
-        .qr-div { background: white; padding: 8px; border-radius: 8px; }
-        .info { position: absolute; top: 8px; right: 10px; background: rgba(0,209,178,0.8); color: #000; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; z-index: 10; }
-        #mobile-ui { display:none; padding: 40px 20px; }
-        .btn-capture { background: #e74c3c; color: white; padding: 25px; border: none; border-radius: 50%; width: 100px; height: 100px; font-size: 1rem; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px rgba(231, 76, 60, 0.5); }
-        canvas { display: none; }
+        canvas { width: 100%; height: 100%; object-fit: cover; display: none; transform: scaleX(-1); }
+        .qr-div { background: white; padding: 5px; border-radius: 5px; }
+        .info { position: absolute; top: 8px; right: 10px; background: #00d1b2; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; z-index: 10; }
+        #mobile-ui { display:none; padding: 30px 15px; }
+        .btn-capture { 
+            background: #ff4757; color: white; border: none; width: 120px; height: 120px; 
+            border-radius: 50%; font-size: 1.2rem; font-weight: bold; cursor: pointer;
+            box-shadow: 0 0 20px rgba(255, 71, 87, 0.4); margin-bottom: 20px;
+        }
+        #video-preview { width: 100%; max-width: 320px; border-radius: 15px; transform: scaleX(-1); border: 2px solid #00d1b2; }
     </style>
 </head>
 <body>
 
 <div id="pc-ui">
-    <h2>لوحة استقبال الصور المباشرة</h2>
+    <h2 style="color: #00d1b2;">لوحة استقبال الصور المباشرة</h2>
     <div class="grid" id="gridContainer"></div>
 </div>
 
 <div id="mobile-ui">
-    <h2 id="cam-name">كاميرا 🤳</h2>
-    <p>اضغط على الزر الأحمر لالتقاط صورة وإرسالها للحاسوب</p>
-    <button class="btn-capture" id="captureBtn">إرسال 📸</button>
-    <video id="preview" autoplay playsinline muted style="width: 100%; max-width: 300px; border-radius: 15px; margin-top: 20px; transform: scaleX(-1); border: 2px solid #333;"></video>
-    <canvas id="canvas"></canvas>
+    <video id="video-preview" autoplay playsinline muted></video>
+    <br><br>
+    <button class="btn-capture" id="captureBtn">التقاط 📸</button>
+    <p>سيتم تحديث الصورة في الحاسوب فوراً</p>
 </div>
 
 <script>
@@ -42,42 +45,40 @@
     const joinId = urlParams.get('join');
     const camNo = urlParams.get('cam');
 
-    // إعدادات PeerJS
-    const peer = new Peer({
+    // إعدادات السيرفرات لضمان العمل خارج الشبكة
+    const peerConfig = {
         config: {'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }]}
-    });
+    };
 
     if (joinId) {
         // --- وضع الهاتف ---
         document.getElementById('pc-ui').style.display = 'none';
         document.getElementById('mobile-ui').style.display = 'block';
-        document.getElementById('cam-name').innerText = "ارسال للنافذة " + camNo;
 
-        let localStream;
-        const videoPreview = document.getElementById('preview');
+        const peer = new Peer(peerConfig);
+        let currentStream;
 
-        // تشغيل المعاينة فور فتح الصفحة
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
             .then(stream => {
-                localStream = stream;
-                videoPreview.srcObject = stream;
+                currentStream = stream;
+                document.getElementById('video-preview').srcObject = stream;
             });
 
         document.getElementById('captureBtn').onclick = () => {
-            const canvas = document.getElementById('canvas');
-            const context = canvas.getContext('2d');
-            canvas.width = videoPreview.videoWidth;
-            canvas.height = videoPreview.videoHeight;
-            
-            // التقاط الإطار الحالي من الفيديو
-            context.drawImage(videoPreview, 0, 0, canvas.width, canvas.height);
-            const imageData = canvas.toDataURL('image/jpeg', 0.7); // تحويل الصورة لنص (Base64)
-
-            // إرسال البيانات للحاسوب
+            // نستخدم ميزة PeerJS لإرسال البيانات كـ "اتصال بيانات"
             const conn = peer.connect(joinId);
             conn.on('open', () => {
-                conn.send(imageData);
-                alert("تم إرسال الصورة بنجاح ✅");
+                const canvas = document.createElement('canvas');
+                const video = document.getElementById('video-preview');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                
+                const imgData = canvas.toDataURL('image/jpeg', 0.5); // ضغط الصورة لسرعة الإرسال
+                conn.send(imgData);
+                
+                document.getElementById('captureBtn').innerText = "تم ✅";
+                setTimeout(() => document.getElementById('captureBtn').innerText = "التقاط 📸", 1000);
             });
         };
     } else {
@@ -89,23 +90,32 @@
             box.innerHTML = `
                 <div class="info">نافذة ${i}</div>
                 <div id="qr${i}" class="qr-div"></div>
-                <img id="img${i}" src="" />
+                <canvas id="canv${i}"></canvas>
             `;
             grid.appendChild(box);
 
+            const peer = new Peer(peerConfig);
             peer.on('open', (id) => {
                 const link = window.location.origin + window.location.pathname + `?join=${id}&cam=${i}`;
                 new QRCode(document.getElementById(`qr${i}`), { text: link, width: 120, height: 120 });
             });
 
-            // استقبال البيانات (الصورة)
+            // استقبال البيانات (الصورة) وعرضها فوراً
             peer.on('connection', (conn) => {
                 conn.on('data', (data) => {
-                    const img = document.getElementById(`img${i}`);
+                    const canvas = document.getElementById(`canv${i}`);
                     const qr = document.getElementById(`qr${i}`);
+                    const ctx = canvas.getContext('2d');
+                    
+                    const img = new Image();
+                    img.onload = function() {
+                        canvas.style.display = 'block';
+                        qr.style.display = 'none';
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                    };
                     img.src = data;
-                    img.style.display = 'block';
-                    qr.style.display = 'none';
                 });
             });
         }
