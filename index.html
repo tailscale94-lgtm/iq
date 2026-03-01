@@ -2,36 +2,34 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>نظام التقاط الصور الاحترافي</title>
+    <title>نظام المراقبة - تحديث فوري</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 10px; text-align: center; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; height: 85vh; }
-        @media (max-width: 800px) { .grid { grid-template-columns: repeat(2, 1fr); } }
-        .box { background: #111; border: 2px solid #333; border-radius: 10px; display: flex; align-items: center; justify-content: center; position: relative; aspect-ratio: 4/3; overflow: hidden; }
-        img { width: 100%; height: 100%; object-fit: cover; display: none; transform: scaleX(-1); }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; height: 80vh; }
+        @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+        .box { background: #111; border: 2px solid #333; border-radius: 10px; position: relative; aspect-ratio: 4/3; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; object-fit: cover; display: none; transform: scaleX(-1); }
+        canvas { display: none; } /* مخفي، يستخدم للمعالجة فقط */
         .qr-div { background: white; padding: 5px; border-radius: 5px; }
-        .info { position: absolute; top: 5px; right: 10px; background: #00d1b2; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 11px; z-index: 10; }
-        #mobile-ui { display:none; padding: 20px; }
-        .btn-capture { background: #ff4757; color: white; border: none; width: 100px; height: 100px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; margin-top: 20px; }
-        #video-preview { width: 100%; max-width: 300px; border-radius: 10px; transform: scaleX(-1); border: 2px solid #444; }
-        .status-dot { width: 10px; height: 10px; background: red; border-radius: 50%; display: inline-block; margin-left: 5px; }
+        .info { position: absolute; top: 5px; right: 5px; background: #00d1b2; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 10px; z-index: 10; font-weight: bold; }
+        .refresh-btn { background: #444; color: #fff; border: 1px solid #666; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-bottom: 10px; }
+        #mobile-ui { display:none; padding: 30px 10px; }
+        .capture-btn { background: #00d1b2; color: #000; padding: 20px; border: none; border-radius: 10px; font-size: 1.5rem; width: 100%; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div id="pc-ui">
-    <h2 style="color: #00d1b2;">لوحة استقبال الصور</h2>
+    <button class="refresh-btn" onclick="location.reload()">🔄 تحديث اللوحة بالكامل</button>
     <div class="grid" id="gridContainer"></div>
 </div>
 
 <div id="mobile-ui">
-    <div id="conn-status"><span class="status-dot" id="dot"></span> جاري الربط بالحاسوب...</div>
-    <video id="video-preview" autoplay playsinline muted></video>
-    <br>
-    <button class="btn-capture" id="captureBtn" disabled>انتظر...</button>
-    <canvas id="hidden-canvas" style="display:none;"></canvas>
+    <video id="preview" autoplay playsinline muted style="width: 100%; max-width: 320px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #00d1b2;"></video>
+    <button class="capture-btn" id="sendBtn">إرسال الصورة الآن 📸</button>
+    <p id="status" style="margin-top:15px; color: #888;">جاري الاتصال...</p>
 </div>
 
 <script>
@@ -44,67 +42,49 @@
         // --- وضع الهاتف ---
         document.getElementById('pc-ui').style.display = 'none';
         document.getElementById('mobile-ui').style.display = 'block';
-
+        
         const peer = new Peer(peerConfig);
-        let activeConn = null;
+        let localStream;
 
-        // تشغيل الكاميرا فوراً للمعاينة
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-            .then(stream => { document.getElementById('video-preview').srcObject = stream; });
-
-        peer.on('open', () => {
-            // محاولة الربط فوراً عند فتح الصفحة
-            const conn = peer.connect(joinId);
-            conn.on('open', () => {
-                activeConn = conn;
-                document.getElementById('dot').style.background = "#28a745";
-                document.getElementById('conn-status').innerHTML = "✅ متصل وجاهز للارسال";
-                document.getElementById('captureBtn').disabled = false;
-                document.getElementById('captureBtn').innerText = "التقاط 📸";
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+            .then(stream => {
+                localStream = stream;
+                document.getElementById('preview').srcObject = stream;
+                document.getElementById('status').innerText = "✅ الكاميرا جاهزة";
             });
-        });
 
-        document.getElementById('captureBtn').onclick = () => {
-            if (activeConn && activeConn.open) {
-                const video = document.getElementById('video-preview');
-                const canvas = document.getElementById('hidden-canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-                
-                // إرسال الصورة كبيانات نصية مضغوطة
-                const imgBase64 = canvas.toDataURL('image/jpeg', 0.4); 
-                activeConn.send(imgBase64);
-                
-                // تأثير بصري للضغط
-                document.getElementById('captureBtn').style.background = "#28a745";
-                setTimeout(() => { document.getElementById('captureBtn').style.background = "#ff4757"; }, 500);
-            } else {
-                alert("انقطع الاتصال، يرجى تحديث الصفحة");
+        document.getElementById('sendBtn').onclick = () => {
+            if (localStream) {
+                peer.call(joinId, localStream);
+                document.getElementById('status').innerText = "⏳ جاري الإرسال...";
+                document.getElementById('sendBtn').style.background = "#28a745";
+                setTimeout(() => { document.getElementById('sendBtn').style.background = "#00d1b2"; }, 1000);
             }
         };
     } else {
         // --- وضع الحاسوب ---
-        const grid = document.getElementById('gridContainer');
         for (let i = 1; i <= 8; i++) {
             const box = document.createElement('div');
             box.className = 'box';
-            box.innerHTML = `<div class="info">نافذة ${i}</div><div id="qr${i}" class="qr-div"></div><img id="img${i}">`;
-            grid.appendChild(box);
+            box.innerHTML = `<div class="info">كاميرا ${i}</div><div id="qr${i}" class="qr-div"></div><video id="v${i}" autoplay playsinline muted></video>`;
+            document.getElementById('gridContainer').appendChild(box);
 
             const peer = new Peer(peerConfig);
             peer.on('open', (id) => {
                 const link = window.location.origin + window.location.pathname + `?join=${id}&cam=${i}`;
-                new QRCode(document.getElementById(`qr${i}`), { text: link, width: 110, height: 110 });
+                new QRCode(document.getElementById(`qr${i}`), { text: link, width: 120, height: 120 });
             });
 
-            peer.on('connection', (conn) => {
-                conn.on('data', (data) => {
-                    const img = document.getElementById(`img${i}`);
-                    const qr = document.getElementById(`qr${i}`);
-                    img.src = data;
-                    img.style.display = 'block';
-                    qr.style.display = 'none';
+            peer.on('call', (call) => {
+                call.answer();
+                call.on('stream', (remoteStream) => {
+                    const video = document.getElementById(`v${i}`);
+                    video.srcObject = remoteStream;
+                    video.style.display = 'block';
+                    document.getElementById(`qr${i}`).style.display = 'none';
+                    
+                    // تحديث الفيديو قسرياً للتأكد من عدم تجمد الصورة
+                    video.play().catch(e => console.error("Play error:", e));
                 });
             });
         }
