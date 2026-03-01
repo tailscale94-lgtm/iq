@@ -2,13 +2,13 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>نظام 8 كاميرات - GitHub النسخة</title>
+    <title>نظام 8 كاميرات - الكاميرا الأمامية</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 10px; }
         .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; height: 95vh; }
-        @media (max-width: 800px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 1fr); } }
         .box { 
             background: #111; border: 1px solid #333; border-radius: 8px; 
             display: flex; flex-direction: column; align-items: center; 
@@ -16,11 +16,11 @@
             cursor: pointer; transition: 0.3s; aspect-ratio: 4/3;
         }
         .box.fullscreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999; }
-        video { width: 100%; height: 100%; object-fit: cover; display: none; }
+        video { width: 100%; height: 100%; object-fit: cover; display: none; transform: scaleX(-1); } /* قلب الصورة لتكون كالمرآة */
         .qr-div { background: white; padding: 5px; border-radius: 4px; }
         .info { position: absolute; top: 5px; right: 10px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 4px; font-size: 12px; z-index: 10; }
         #mobile-ui { display:none; text-align: center; padding: 50px 20px; }
-        .btn { background: #28a745; color: white; padding: 20px; border: none; border-radius: 10px; font-size: 1.5rem; width: 100%; max-width: 300px; cursor: pointer; }
+        .btn { background: #007bff; color: white; padding: 20px; border: none; border-radius: 10px; font-size: 1.5rem; width: 100%; max-width: 300px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -29,7 +29,8 @@
 
 <div id="mobile-ui">
     <h2 id="cam-name"></h2>
-    <button class="btn" id="startBtn">تشغيل الكاميرا الآن 🎥</button>
+    <p>سيتم استخدام الكاميرا الأمامية</p>
+    <button class="btn" id="startBtn">فتح الكاميرا الأمامية 🤳</button>
     <p id="status" style="margin-top: 20px; color: #888;">جاهز للبث...</p>
 </div>
 
@@ -47,21 +48,22 @@
         const peer = new Peer();
         document.getElementById('startBtn').onclick = async () => {
             try {
+                // تعديل facingMode إلى "user" لفتح الكاميرا الأمامية
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" }, 
+                    video: { facingMode: "user" }, 
                     audio: false 
                 });
                 peer.call(joinId, stream);
                 document.getElementById('startBtn').style.display = 'none';
-                document.getElementById('status').innerText = "✅ يتم البث الآن...";
+                document.getElementById('status').innerText = "✅ يتم البث من الكاميرا الأمامية...";
             } catch (err) {
-                alert("خطأ في الكاميرا: " + err);
+                alert("خطأ: تأكد من إعطاء صلاحية الكاميرا للمتصفح.");
             }
         };
     } else {
-        // --- وضع الحاسوب (توليد 8 مربعات) ---
+        // --- وضع الحاسوب ---
         const grid = document.getElementById('pc-ui');
-        const baseUrl = window.location.href.split('?')[0]; // يجلب رابط الصفحة الحالي مهما كان
+        const baseUrl = window.location.href.split('?')[0];
 
         for (let i = 1; i <= 8; i++) {
             const box = document.createElement('div');
